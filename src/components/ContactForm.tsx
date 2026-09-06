@@ -121,9 +121,10 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
         </div>
 
         <form
-          onSubmit={handleSubmit}
-          className="mt-12 overflow-hidden rounded-3xl bg-white p-8 shadow-xl lg:p-10"
-        >
+			action="https://formspree.io/f/xgaelrbd"
+			method="POST"
+			className="mt-12 overflow-hidden rounded-3xl bg-white p-8 shadow-xl lg:p-10"
+		>
           <div className="grid gap-5 sm:grid-cols-2">
             {/* Name */}
             <div>
@@ -134,6 +135,7 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
                 <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-slate/30" />
                 <input
                   type="text"
+                  name="Nombre"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
@@ -160,6 +162,7 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
                 <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-slate/30" />
                 <input
                   type="tel"
+                  name="Telefono"
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
@@ -186,6 +189,7 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
                 <Briefcase className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-slate/30 pointer-events-none" />
                 <select
                   value={formData.clientType}
+                  name="Tipo_de_Cliente"
                   onChange={(e) =>
                     setFormData({ ...formData, clientType: e.target.value })
                   }
@@ -216,6 +220,7 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
                 <Building className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-slate/30 pointer-events-none" />
                 <select
                   value={formData.businessUnit}
+                  name="Unidad_de_Negocio"
                   onChange={(e) =>
                     setFormData({ ...formData, businessUnit: e.target.value })
                   }
@@ -248,6 +253,7 @@ export default function ContactForm({ onNavigate }: ContactFormProps) {
               <FileText className="absolute left-3 top-3 h-4 w-4 text-brand-slate/30" />
               <textarea
                 value={formData.message}
+                name="Mensaje"
                 onChange={(e) =>
                   setFormData({ ...formData, message: e.target.value })
                 }
