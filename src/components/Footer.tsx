@@ -77,10 +77,10 @@ export default function Footer({ onNavigate }: FooterProps) {
               <li className="flex items-center gap-3">
                 <Mail className="h-5 w-5 shrink-0 text-brand-copper" />
                 <a
-                  href="mailto:alexsamuelmoline@gmail.com"
+                  href="mailto:contacto@moline.com.ar"
                   className="transition-colors hover:text-white"
                 >
-                  alexsamuelmoline@gmail.com
+                  contacto@moline.com.ar
                 </a>
               </li>
             </ul>
