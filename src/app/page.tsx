@@ -1,5 +1,12 @@
 'use client';
 
+// ============================================================================
+// [IMPORTS]
+// - React hooks para estado local y efectos de ciclo de vida.
+// - Iconos de lucide-react usados en toda la página (hero, unidades, footer, etc).
+// - Componentes de UI (shadcn/ui): Button, Card, Input, Label, Badge, Select, Tabs.
+// - `cn` es un helper para combinar clases de Tailwind condicionalmente.
+// ============================================================================
 import { useState, useMemo, useEffect } from 'react';
 import {
   ArrowRight,
@@ -59,12 +66,23 @@ import {
 } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
+// ============================================================================
+// [CONFIGURACIÓN DE BOTÓN WHATSAPP]
+// Centraliza el número de contacto y arma los links de WhatsApp con mensajes
+// pre-cargados (encodeURIComponent evita romper la URL con espacios/acentos).
+// Si el número de la empresa cambia, solo hay que tocar WHATSAPP_NUMBER acá.
+// ============================================================================
 const WHATSAPP_NUMBER = '5492995809928';
 const WHATSAPP_BASE = `https://wa.me/${WHATSAPP_NUMBER}`;
 const WHATSAPP_BUDGET = `${WHATSAPP_BASE}?text=${encodeURIComponent(
   'Hola Moliné Electromecánica, quisiera solicitar un presupuesto.'
 )}`;
 
+// ============================================================================
+// [NAVEGACIÓN PRINCIPAL]
+// Array de links del header, tanto para el nav desktop como el mobile.
+// Un solo array evita tener que mantener dos listas sincronizadas.
+// ============================================================================
 const NAV_LINKS = [
   { label: 'Inicio', href: '#inicio' },
   { label: 'Misión y Visión', href: '#mision-vision' },
@@ -75,9 +93,17 @@ const NAV_LINKS = [
   { label: 'Contacto', href: '#contacto' },
 ];
 
+// ============================================================================
+// [CALCULADORA HVAC - TIPOS Y CONFIGURACIÓN]
+// UseType/Exposure son los dos selectores que alimentan la fórmula de
+// frigorías. Cada opción tiene un factor/multiplicador numérico y un ícono
+// asociado para la UI. Mantener esto tipado evita valores inválidos.
+// ============================================================================
 type UseType = 'residencial' | 'oficina' | 'deposito' | 'servidores';
 type Exposure = 'mucha' | 'normal' | 'sombra';
 
+// Factor de frigorías por m³ según el uso del espacio (a mayor carga térmica
+// esperada -ej. servidores-, mayor factor).
 const USE_TYPE_CONFIG: Record<
   UseType,
   { label: string; factor: number; icon: typeof Home }
@@ -88,6 +114,7 @@ const USE_TYPE_CONFIG: Record<
   servidores: { label: 'Servidores / IT', factor: 150, icon: Server },
 };
 
+// Multiplicador de corrección según la exposición solar del ambiente.
 const EXPOSURE_CONFIG: Record<
   Exposure,
   { label: string; multiplier: number; icon: typeof Sun }
@@ -97,6 +124,10 @@ const EXPOSURE_CONFIG: Record<
   sombra: { label: 'Sombra', multiplier: 1.0, icon: Cloud },
 };
 
+// [CALCULADORA HVAC - RECOMENDADOR DE EQUIPO]
+// Dado un total de frigorías, devuelve el nombre del equipo sugerido.
+// Es una función pura (sin estado), fácil de testear y de ajustar si cambian
+// los cortes de frigorías o el catálogo de equipos.
 function getEquipmentRecommendation(frigorias: number): string {
   if (frigorias <= 3000) return 'Equipo Split Inverter 3.000 Frig';
   if (frigorias <= 6000) return 'Equipo Split Piso-Cielo 6.000 Frig';
@@ -107,21 +138,47 @@ function getEquipmentRecommendation(frigorias: number): string {
 }
 
 export default function HomePage() {
+  // ==========================================================================
+  // [ESTADO - NAVEGACIÓN]
+  // mobileNavOpen: controla si el menú hamburguesa mobile está desplegado.
+  // scrolled: true cuando el usuario bajó más de 20px; se usa para cambiar
+  //           el header de "transparente sobre el hero" a "sólido con blur".
+  // ==========================================================================
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  // ==========================================================================
+  // [ESTADO - CALCULADORA HVAC]
+  // length/width/height: dimensiones del espacio en metros (como string
+  //   porque vienen de un <Input type="number"> controlado).
+  // useType: tipo de uso del espacio (residencial, oficina, depósito, IT).
+  // exposure: nivel de exposición solar del ambiente.
+  // ==========================================================================
   const [length, setLength] = useState<string>('');
   const [width, setWidth] = useState<string>('');
   const [height, setHeight] = useState<string>('');
   const [useType, setUseType] = useState<UseType>('residencial');
   const [exposure, setExposure] = useState<Exposure>('normal');
 
+  // [HANDLER - DETECCIÓN DE SCROLL]
+  // Suscribe un listener de scroll al montar el componente para togglear
+  // `scrolled`. Se limpia el listener al desmontar para evitar memory leaks.
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // ==========================================================================
+  // [LÓGICA - CÁLCULO DE FRIGORÍAS]
+  // useMemo recalcula el resultado solo cuando cambian length/width/height/
+  // useType/exposure (evita recalcular en cada render por otros estados,
+  // como mobileNavOpen).
+  // Fórmula: Frigorías = (Volumen × Factor de uso × Multiplicador de
+  // exposición) + 1000 (carga base fija).
+  // Devuelve null si falta algún dato o si algún valor es inválido (<= 0),
+  // lo que dispara el estado "vacío" de la tarjeta de resultado.
+  // ==========================================================================
   const calculation = useMemo(() => {
     const l = parseFloat(length);
     const w = parseFloat(width);
@@ -144,18 +201,27 @@ export default function HomePage() {
     };
   }, [length, width, height, useType, exposure]);
 
+  // [LÓGICA - LINK DE WHATSAPP CON RESULTADO DEL CÁLCULO]
+  // Arma dinámicamente el mensaje de WhatsApp incluyendo el resultado de la
+  // calculadora, para que el asesor comercial reciba el contexto completo
+  // (frigorías + equipo sugerido) sin que el usuario tenga que escribirlo.
   const whatsappConsultLink = useMemo(() => {
     if (!calculation) return WHATSAPP_BASE;
     const msg = `Hola Moliné, necesito consultar disponibilidad de un equipo de ${calculation.totalFrigorias.toLocaleString('es-AR')} frigorías (${calculation.equipment}). ¿Qué opciones tienen?`;
     return `${WHATSAPP_BASE}?text=${encodeURIComponent(msg)}`;
   }, [calculation]);
 
+  // [DATOS ESTÁTICOS - MÉTRICAS DEL HERO]
+  // Números destacados que se muestran como tarjetas debajo del CTA del hero.
   const metrics = [
     { value: '+15.000', unit: 'm²', label: 'Intervenidos', icon: Ruler },
     { value: '+5.000', unit: 'HP', label: 'Instalados', icon: Zap },
     { value: '', unit: '', label: 'Cobertura en Neuquén y Río Negro', icon: MapPin },
   ];
 
+  // [DATOS ESTÁTICOS - UNIDADES DE NEGOCIO]
+  // Alimenta tanto los tabs (triggers) como el contenido de cada tab en la
+  // sección "Unidades de Negocio". `partner: true` muestra el badge BGH.
   const businessUnits = [
     {
       icon: Wrench,
@@ -191,7 +257,17 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
-      {/* HEADER & STICKY NAV */}
+      {/* ====================================================================
+          [HEADER / NAV STICKY]
+          Header fijo (fixed) que cambia de transparente a sólido con blur
+          cuando `scrolled` es true. Contiene: logo/marca, nav desktop, CTA de
+          WhatsApp y el toggle del menú mobile.
+          NOTA DE CORRECCIÓN: en el archivo original había un <img> del logo
+          duplicado y renderizado FUERA del contenedor `max-w-7xl` (rompía el
+          alineado), más un ícono "Cog" redundante dentro de un <span> anidado
+          incorrectamente con un <div>. Se unificó todo en un solo bloque de
+          marca dentro del contenedor centrado.
+      ==================================================================== */}
       <header
         className={cn(
           'fixed inset-x-0 top-0 z-50 transition-all duration-300',
@@ -200,38 +276,17 @@ export default function HomePage() {
             : 'bg-transparent'
         )}
       >
-        {/* LOGO DE MOLINÉ ELECTROMECÁNICA */}
-		<div className="flex items-center gap-3">
-			<img 
-				src="/logo.jpg" 
-				alt="Moliné Electromecánica S.A.S." 
-				className="h-14 sm:h-16 md:h-20 w-auto object-contain rounded-lg shadow-sm"
-			/>
-		</div>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
-          {/* Brand */}
+          {/* [MARCA / LOGO] Único render del logo, dentro del link a #inicio */}
           <a href="#inicio" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F2C59]">
-              <Cog className="h-5 w-5 text-[#B85042]" />
-            </div>
-            <span
-              className={cn(
-                'text-sm font-bold tracking-tight transition-colors',
-                scrolled ? 'text-[#0F2C59]' : 'text-white'
-              )}
-            >
-              {/* LOGO OFICIAL MOLINÉ */}
-				<div className="flex items-center gap-3">
-				  <img 
-					src="/logo.jpg" 
-					alt="Moliné Electromecánica S.A.S." 
-					className="h-12 w-auto object-contain rounded-lg shadow-sm"
-				  />
-				</div>
-            </span>
+            <img
+              src="/logo.jpg"
+              alt="Moliné Electromecánica S.A.S."
+              className="h-10 w-auto rounded-lg object-contain shadow-sm sm:h-12"
+            />
           </a>
 
-          {/* Desktop nav */}
+          {/* [NAV DESKTOP] Oculto en mobile (hidden lg:flex) */}
           <nav className="hidden items-center gap-1 lg:flex">
             {NAV_LINKS.map((link) => (
               <a
@@ -249,7 +304,7 @@ export default function HomePage() {
             ))}
           </nav>
 
-          {/* CTA + mobile toggle */}
+          {/* [CTA WHATSAPP + TOGGLE MOBILE] */}
           <div className="flex items-center gap-3">
             <Button
               asChild
@@ -261,6 +316,7 @@ export default function HomePage() {
                 Presupuestar por WhatsApp
               </a>
             </Button>
+            {/* Botón hamburguesa: alterna mobileNavOpen (Menu <-> X) */}
             <button
               onClick={() => setMobileNavOpen(!mobileNavOpen)}
               className={cn(
@@ -273,7 +329,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Mobile nav */}
+        {/* [NAV MOBILE] Render condicional: solo si mobileNavOpen es true */}
         {mobileNavOpen && (
           <div className="border-t border-[#0F2C59]/10 bg-white px-6 py-4 lg:hidden">
             <nav className="flex flex-col gap-1">
@@ -281,7 +337,7 @@ export default function HomePage() {
                 <a
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMobileNavOpen(false)}
+                  onClick={() => setMobileNavOpen(false)} // cierra el menú al navegar
                   className="rounded-md px-3 py-2.5 text-sm font-medium text-[#0F172A]/70 hover:bg-[#0F2C59]/5 hover:text-[#0F2C59]"
                 >
                   {link.label}
@@ -302,11 +358,16 @@ export default function HomePage() {
         )}
       </header>
 
-      {/* HERO SECTION */}
+      {/* ====================================================================
+          [SECCIÓN HERO]
+          Bloque principal de bienvenida: fondo degradado + grilla decorativa,
+          título, copy, botones de acción, métricas destacadas e imagen lateral.
+      ==================================================================== */}
       <section
         id="inicio"
         className="relative overflow-hidden bg-gradient-to-br from-[#0F2C59] via-[#1a3a6b] to-[#0F2C59] pt-28 pb-20 lg:pt-36 lg:pb-28"
       >
+        {/* Grilla de fondo decorativa (muy baja opacidad) */}
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -315,13 +376,15 @@ export default function HomePage() {
             backgroundSize: '48px 48px',
           }}
         />
+        {/* Manchas de color decorativas (blur) */}
         <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-[#B85042]/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-blue-400/10 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-6">
           <div className="grid items-center gap-12 lg:grid-cols-12">
+            {/* [HERO - COLUMNA DE TEXTO] */}
             <div className="lg:col-span-7">
-              {/* Badges */}
+              {/* Badges de certificación/partner */}
               <div className="animate-fade-in mb-6 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[#B85042]/40 bg-[#B85042]/10 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
                   <Award className="h-3.5 w-3.5 text-[#B85042]" />
@@ -344,6 +407,7 @@ export default function HomePage() {
                 precisión y energía renovable en Neuquén y Río Negro.
               </p>
 
+              {/* [HERO - CTAs PRINCIPALES] */}
               <div className="animate-fade-in-up mt-8 flex flex-col gap-4 sm:flex-row [animation-delay:300ms]">
                 <Button
                   asChild
@@ -372,7 +436,7 @@ export default function HomePage() {
                 </Button>
               </div>
 
-              {/* Metrics bar */}
+              {/* [HERO - MÉTRICAS] Recorre `metrics` para pintar cada tarjeta */}
               <div className="animate-fade-in-up mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3 [animation-delay:450ms]">
                 {metrics.map((m) => (
                   <div
@@ -390,7 +454,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Image */}
+            {/* [HERO - COLUMNA DE IMAGEN] */}
             <div className="animate-slide-in-right lg:col-span-5 [animation-delay:300ms]">
               <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
                 <img
@@ -421,7 +485,12 @@ export default function HomePage() {
         <div className="relative h-px w-full bg-gradient-to-r from-transparent via-[#B85042]/40 to-transparent" />
       </section>
 
-      {/* MISIÓN Y VISIÓN */}
+      {/* ====================================================================
+          [SECCIÓN MISIÓN Y VISIÓN]
+          Contenido actualizado a pedido: refleja el posicionamiento B2B en
+          Vaca Muerta / cuenca neuquina, Alto Valle, BESS, telemetría
+          industrial y la alianza con BGH Tech Solutions.
+      ==================================================================== */}
       <section id="mision-vision" className="bg-[#F1F5F9] py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto mb-12 max-w-2xl text-center">
@@ -434,40 +503,51 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Misión */}
+            {/* [MISIÓN] */}
             <Card className="border-[#0F2C59]/10 bg-white p-8 transition-all hover:shadow-lg">
               <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-[#0F2C59]">
                 <Target className="h-7 w-7 text-white" />
               </div>
               <h3 className="text-xl font-bold text-[#0F2C59]">Misión</h3>
               <p className="mt-3 text-sm leading-relaxed text-[#0F172A]/70">
-                Proveer soluciones integrales de ingeniería electromecánica,
-                climatización, automatización y energías renovables, combinando
-                idoneidad técnica con respuesta inmediata. Nos enfocamos en
-                garantizar la continuidad operativa de industrias y comercios, así
-                como el confort y la eficiencia energética en cada hogar,
-                construyendo relaciones de confianza a largo plazo.
+                En Moliné Electromecánica &amp; Energía proporcionamos soluciones
+                integrales de ingeniería, climatización de alta eficiencia,
+                energías renovables (Solar y BESS) y telemetría industrial para
+                los sectores corporativo, comercial e industrial de la cuenca
+                neuquina y el Alto Valle. Como partners estratégicos de BGH Tech
+                Solutions, combinamos innovación tecnológica, flexibilidad de
+                financiamiento y soporte técnico local con los más altos
+                estándares de calidad y seguridad, impulsando la continuidad
+                operativa y la transición energética de nuestros clientes.
               </p>
             </Card>
 
-            {/* Visión */}
+            {/* [VISIÓN] */}
             <Card className="border-[#0F2C59]/10 bg-white p-8 transition-all hover:shadow-lg">
               <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-[#B85042]">
                 <Eye className="h-7 w-7 text-white" />
               </div>
               <h3 className="text-xl font-bold text-[#0F2C59]">Visión</h3>
               <p className="mt-3 text-sm leading-relaxed text-[#0F172A]/70">
-                Convertirnos en el socio técnico de referencia indiscutido en la
-                región; la primera opción en la mente de empresas y familias al
-                momento de resolver una necesidad técnica o desarrollar un
-                proyecto energético en su propiedad, comercio o industria.
+                Consolidarnos como la empresa líder y referente en la región
+                patagónica para el desarrollo e integración B2B de soluciones
+                electromecánicas y de eficiencia energética, reconocida por la
+                excelencia en la ejecución de proyectos en Vaca Muerta, nuestro
+                compromiso con la sustentabilidad medioambiental y la creación de
+                alianzas estratégicas de largo plazo que transformen el futuro
+                energético e industrial de la región.
               </p>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* UNIDADES DE NEGOCIO */}
+      {/* ====================================================================
+          [SECCIÓN UNIDADES DE NEGOCIO]
+          Tabs generados dinámicamente a partir de `businessUnits`. El slug de
+          cada unidad se calcula normalizando el título (sin tildes, en
+          minúsculas, separado por guiones) para usarlo como `value` del tab.
+      ==================================================================== */}
       <section id="unidades" className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto mb-12 max-w-2xl text-center">
@@ -484,9 +564,11 @@ export default function HomePage() {
           </div>
 
           <Tabs defaultValue="electromecanica" className="w-full">
+            {/* [TABS TRIGGERS] */}
             <div className="mb-8 flex justify-center">
               <TabsList className="flex flex-wrap justify-center gap-1 rounded-xl bg-[#F1F5F9] p-1.5">
                 {businessUnits.map((unit) => {
+                  // Genera un slug URL-safe a partir del título (ej: "Energía Solar" -> "energia-solar")
                   const slug = unit.title
                     .toLowerCase()
                     .normalize('NFD')
@@ -506,6 +588,7 @@ export default function HomePage() {
               </TabsList>
             </div>
 
+            {/* [TABS CONTENIDO] Un TabsContent por cada unidad de negocio */}
             {businessUnits.map((unit) => {
               const slug = unit.title
                 .toLowerCase()
@@ -525,6 +608,7 @@ export default function HomePage() {
                           <h3 className="text-xl font-bold text-[#0F2C59]">
                             {unit.title}
                           </h3>
+                          {/* Badge condicional: solo si la unidad tiene partner BGH */}
                           {unit.partner && (
                             <Badge className="border-[#B85042]/30 bg-[#B85042]/10 text-[#B85042]">
                               <Award className="mr-1 h-3 w-3" />
@@ -545,7 +629,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CLIMATIZACIÓN & CATÁLOGO */}
+      {/* ====================================================================
+          [SECCIÓN CLIMATIZACIÓN - CATÁLOGO DESTACADO]
+          Dos tarjetas de producto (Residencial / Grandes Superficies), cada
+          una con imagen, badge de partner, lista de features y CTA a WhatsApp
+          con un mensaje pre-armado específico para ese segmento.
+      ==================================================================== */}
       <section id="climatizacion" className="bg-[#F1F5F9] py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto mb-12 max-w-2xl text-center">
@@ -561,7 +650,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Residencial */}
+            {/* [CATÁLOGO - RESIDENCIAL] */}
             <Card className="group overflow-hidden border-[#0F2C59]/10 bg-white transition-all hover:shadow-xl">
               <div className="relative h-56 overflow-hidden">
                 <img
@@ -611,7 +700,7 @@ export default function HomePage() {
               </div>
             </Card>
 
-            {/* Grandes Superficies */}
+            {/* [CATÁLOGO - GRANDES SUPERFICIES] */}
             <Card className="group overflow-hidden border-[#0F2C59]/10 bg-white transition-all hover:shadow-xl">
               <div className="relative h-56 overflow-hidden">
                 <img
@@ -664,7 +753,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CALCULADORA HVAC */}
+      {/* ====================================================================
+          [SECCIÓN CALCULADORA HVAC]
+          Formulario (largo/ancho/alto, tipo de uso, exposición solar) +
+          panel de resultado en vivo. Todo el cálculo vive en `calculation`
+          (useMemo definido arriba); esta sección solo pinta el estado.
+      ==================================================================== */}
       <section
         id="calculadora"
         className="relative overflow-hidden bg-[#1E293B] py-20"
@@ -697,7 +791,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-8 lg:grid-cols-2">
-            {/* FORM */}
+            {/* [CALCULADORA - FORMULARIO] Inputs controlados por useState */}
             <Card className="border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">
               <div className="mb-6 flex items-center gap-2">
                 <Ruler className="h-5 w-5 text-[#B85042]" />
@@ -705,6 +799,7 @@ export default function HomePage() {
               </div>
 
               <div className="space-y-5">
+                {/* Dimensiones: largo / ancho / alto en metros */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label
@@ -762,6 +857,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Selector de tipo de uso (afecta el factor de frigorías) */}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium uppercase tracking-wide text-white/50">
                     Tipo de uso
@@ -789,6 +885,7 @@ export default function HomePage() {
                   </Select>
                 </div>
 
+                {/* Selector de exposición solar (botones tipo toggle) */}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium uppercase tracking-wide text-white/50">
                     Exposición solar
@@ -818,6 +915,7 @@ export default function HomePage() {
                 </div>
               </div>
 
+              {/* Nota explicativa de la fórmula usada */}
               <div className="mt-6 rounded-lg border border-white/5 bg-white/[0.02] p-4">
                 <p className="text-xs text-white/40">
                   <span className="font-semibold text-white/60">Fórmula:</span>{' '}
@@ -826,9 +924,11 @@ export default function HomePage() {
               </div>
             </Card>
 
-            {/* RESULT */}
+            {/* [CALCULADORA - RESULTADO] Render condicional según `calculation` */}
             <div className="flex flex-col">
               {calculation ? (
+                // Estado "con resultado": muestra frigorías, volumen, carga base,
+                // equipo recomendado y CTA de WhatsApp con el resultado incluido.
                 <Card className="animate-fade-in flex-1 border-[#B85042]/20 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-8 backdrop-blur-sm">
                   <div className="mb-6 flex items-center gap-2">
                     <Thermometer className="h-5 w-5 text-[#B85042]" />
@@ -895,6 +995,7 @@ export default function HomePage() {
                   </Button>
                 </Card>
               ) : (
+                // Estado "vacío": se muestra mientras falten datos válidos.
                 <Card className="flex flex-1 flex-col items-center justify-center border-white/10 bg-white/[0.02] p-8 text-center backdrop-blur-sm">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5">
                     <Calculator className="h-8 w-8 text-white/30" />
@@ -913,7 +1014,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PARTNERS */}
+      {/* ====================================================================
+          [SECCIÓN PARTNERS ESTRATÉGICOS]
+          Dos tarjetas: BGH (partner tecnológico) y Hernán Parada
+          Construcciones (sinergia en obra civil / envolventes térmicos).
+      ==================================================================== */}
       <section id="partners" className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto mb-12 max-w-2xl text-center">
@@ -932,7 +1037,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* BGH */}
+            {/* [PARTNER - BGH] */}
             <Card className="group border-[#0F2C59]/10 bg-[#F8FAFC] p-8 transition-all hover:border-[#B85042]/30 hover:shadow-xl">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0F2C59] transition-colors group-hover:bg-[#B85042]">
@@ -979,7 +1084,7 @@ export default function HomePage() {
               </Button>
             </Card>
 
-            {/* Hernán Parada */}
+            {/* [PARTNER - HERNÁN PARADA CONSTRUCCIONES] */}
             <Card className="group border-[#0F2C59]/10 bg-[#F8FAFC] p-8 transition-all hover:border-[#B85042]/30 hover:shadow-xl">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0F2C59] transition-colors group-hover:bg-[#B85042]">
@@ -1023,11 +1128,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER & CONTACTO */}
+      {/* ====================================================================
+          [FOOTER / CONTACTO]
+          Marca + descripción, datos de contacto (WhatsApp, email, cobertura)
+          y link a Google Maps con el área de cobertura.
+      ==================================================================== */}
       <footer id="contacto" className="bg-[#0F2C59] py-16">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-8 md:grid-cols-3">
-            {/* Brand */}
+            {/* [FOOTER - MARCA] */}
             <div>
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
@@ -1043,7 +1152,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Contact info */}
+            {/* [FOOTER - CONTACTO] */}
             <div>
               <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[#B85042]">
                 Contacto
@@ -1076,7 +1185,7 @@ export default function HomePage() {
               </ul>
             </div>
 
-            {/* Map link */}
+            {/* [FOOTER - MAPA DE COBERTURA] */}
             <div>
               <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[#B85042]">
                 Cobertura
@@ -1098,6 +1207,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* [FOOTER - LEGAL] Año dinámico con new Date().getFullYear() */}
           <div className="mt-10 border-t border-white/10 pt-6 text-center">
             <p className="text-xs text-white/30">
               © {new Date().getFullYear()} Moliné Electromecánica S.A.S. - Todos los
@@ -1109,4 +1219,3 @@ export default function HomePage() {
     </main>
   );
 }
-
